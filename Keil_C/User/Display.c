@@ -67,6 +67,10 @@ void Display_Init(void)
     g_bLed4On = 0;
     g_bLed5On = 0;
 
+    /* P0.0 (数码管小数点) 强制设为高阻输入且禁用上拉, 硬件断开回路, 杜绝任何状态下误点亮 */
+    P0CON &= ~0x01;
+    P0PH  &= ~0x01;
+
     PIN_SEG_COM = 1;        /* 7-Seg COM off (high) */
     PIN_LED_CAT_COM = 1;    /* 3528 LED COM off (high) */
     P0 = 0x00;              /* P0 all low */
@@ -152,9 +156,14 @@ void Display_Update(void)
     if (g_bPowerOn)
     {
         led_code |= LED_MASK_LED1; /* LED1 (P0.5) Power indicator */
-        led_code |= LED_MASK_LED5; /* LED5 (P0.1) K5 Power key */
         led_code |= LED_MASK_LED3; /* LED3 (P0.6) K3 Inc key */
         led_code |= LED_MASK_LED4; /* LED4 (P0.3) K4 Dec key */
+
+        /* LED5 (P0.1) K5 Power key: steady on, blinks in delay mode */
+        if (!g_bDelayActive || s_blink_state)
+        {
+            led_code |= LED_MASK_LED5;
+        }
 
         /* Gear digit display: 1, 2, 3 */
         switch (g_current_gear)
@@ -175,12 +184,6 @@ void Display_Update(void)
                 seg_code = SEG_CODE_BLANK;
                 break;
         }
-
-        /* Blink 7-segment in delay-off mode */
-        if (g_bDelayActive && !s_blink_state)
-        {
-            seg_code = SEG_CODE_BLANK;
-        }
     }
     else
     {
@@ -194,8 +197,9 @@ void Display_Update(void)
         led_code |= LED_MASK_LED2;
     }
 
-    s_seg_output = seg_code;
-    s_led_output = led_code;
+    /* 强制清零 bit 0, 确保任何时候 s_seg_output 与 s_led_output 都不会激活 P0.0 (小数点) */
+    s_seg_output = seg_code & 0xFE;
+    s_led_output = led_code & 0xFE;
 }
 
 /**
@@ -218,8 +222,8 @@ void Display_Scan_Tick(void)
         /* Slot 0: 7-segment display */
         if (s_seg_output != 0)
         {
-            P0 = s_seg_output;  /* Output segment anodes (high) */
-            PIN_SEG_COM = 0;    /* Enable 7-seg COM (low) */
+            P0 = s_seg_output & 0xFE;  /* Output segment anodes (high), bit 0 strictly cleared */
+            PIN_SEG_COM = 0;           /* Enable 7-seg COM (low) */
 
             /* 100us pulse = 10% of 1ms slot */
             for (i = 0; i < 10; i++)
@@ -238,8 +242,8 @@ void Display_Scan_Tick(void)
         /* Slot 1: 3528 key backlights */
         if (s_led_output != 0)
         {
-            P0 = s_led_output;      /* Output LED anodes (high) */
-            PIN_LED_CAT_COM = 0;    /* Enable 3528 COM (low) */
+            P0 = s_led_output & 0xFE;      /* Output LED anodes (high), bit 0 strictly cleared */
+            PIN_LED_CAT_COM = 0;           /* Enable 3528 COM (low) */
 
             /* 100us pulse = 10% of 1ms slot */
             for (i = 0; i < 10; i++)

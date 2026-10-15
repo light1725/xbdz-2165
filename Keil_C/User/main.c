@@ -202,7 +202,7 @@ void main(void)
                     s_k5_long_triggered = 1;
                     Host_StartDelay(); // 启动 15 分钟延时模式 (900秒倒计时)
                     BSP_Beep(250);     // 蜂鸣器长鸣 250ms 提示成功进入延时模式
-                    Display_Update();  // 立即刷新数码管进入闪烁模式
+                    Display_Update();  // 立即刷新, 电源键 LED 进入闪烁
                 }
             }
         }
